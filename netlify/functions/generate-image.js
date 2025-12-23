@@ -50,12 +50,13 @@ exports.handler = async (event, context) => {
       console.warn('WARNING: No API key found. Set HUGGINGFACE_API_KEY in Netlify environment variables.')
     }
     
-    // 複数のモデルを順に試す
+    // 複数のモデルを順に試す（より新しい、利用可能なモデル）
     const models = [
-      'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4',
+      'https://api-inference.huggingface.co/models/stabilityai/sdxl-turbo',
+      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
       'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5',
-      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
-      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0'
+      'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1-base',
+      'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4'
     ]
     
     let lastError = null
@@ -75,8 +76,8 @@ exports.handler = async (event, context) => {
           body: JSON.stringify({
             inputs: `${prompt}, high quality, detailed, professional photography, 8k resolution`,
             parameters: {
-              width: Math.min(width || 512, 512),
-              height: Math.min(height || 512, 512)
+              width: Math.min(width || 512, 768),
+              height: Math.min(height || 512, 768)
             }
           })
         })
