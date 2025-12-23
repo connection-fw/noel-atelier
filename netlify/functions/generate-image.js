@@ -44,6 +44,12 @@ exports.handler = async (event, context) => {
     // または、VITE_プレフィックス付きでも読み込めるように両方を試す
     const apiKey = process.env.HUGGINGFACE_API_KEY || process.env.VITE_HUGGINGFACE_API_KEY || ''
     
+    // APIキーの確認（デバッグ用）
+    console.log('API Key present:', apiKey ? 'Yes (length: ' + apiKey.length + ')' : 'No')
+    if (!apiKey) {
+      console.warn('WARNING: No API key found. Set HUGGINGFACE_API_KEY in Netlify environment variables.')
+    }
+    
     // 複数のモデルを順に試す
     const models = [
       'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4',
@@ -91,14 +97,35 @@ exports.handler = async (event, context) => {
           }
         }
         
-        // エラーの場合、次のモデルを試す
-        if (response.status !== 410 && response.status !== 404) {
-          // 410や404以外のエラーは記録して次のモデルを試す
-          const errorText = await response.text().catch(() => response.statusText)
-          console.error(`Model ${apiUrl} returned ${response.status}:`, errorText)
-          lastError = { status: response.status, message: errorText }
-        } else {
-          console.log(`Model ${apiUrl} returned ${response.status}, trying next model`)
+        // エラーの場合、エラー情報を取得して次のモデルを試す
+        let errorText = ''
+        try {
+          const contentType = response.headers.get('content-type') || ''
+          console.log(`Response status: ${response.status}, Content-Type: ${contentType}`)
+          
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json()
+            errorText = JSON.stringify(errorData)
+            console.error(`Model ${apiUrl} returned ${response.status} (JSON):`, errorText)
+          } else {
+            errorText = await response.text()
+            console.error(`Model ${apiUrl} returned ${response.status} (Text):`, errorText.substring(0, 500))
+          }
+        } catch (e) {
+          errorText = response.statusText || `Status ${response.status}`
+          console.error(`Model ${apiUrl} returned ${response.status}, failed to read error:`, e.message)
+        }
+        
+        lastError = { 
+          status: response.status, 
+          message: errorText.substring(0, 1000), // 長すぎる場合は切り詰める
+          model: apiUrl
+        }
+        
+        // 503エラー（モデルロード中）の場合は少し待ってから次のモデルを試す
+        if (response.status === 503) {
+          console.log(`Model ${apiUrl} is loading (503), trying next model`)
+          await new Promise(resolve => setTimeout(resolve, 2000))
         }
       } catch (error) {
         console.error(`Error with model ${apiUrl}:`, error)
@@ -108,13 +135,17 @@ exports.handler = async (event, context) => {
     }
     
     // すべてのモデルが失敗した場合
+    const errorDetails = lastError 
+      ? `Model: ${lastError.model}\nStatus: ${lastError.status}\nMessage: ${lastError.message}`
+      : 'No models available'
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         error: 'All models failed',
-        message: lastError ? `Last error: ${lastError.status} - ${lastError.message}` : 'No models available',
-        suggestion: 'Please check your Hugging Face API key and try again later'
+        message: errorDetails,
+        suggestion: 'Please check your Hugging Face API key and try again later. If the problem persists, the models may be temporarily unavailable.'
       })
     }
   } catch (error) {
