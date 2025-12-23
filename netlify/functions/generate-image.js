@@ -117,29 +117,6 @@ exports.handler = async (event, context) => {
         suggestion: 'Please check your Hugging Face API key and try again later'
       })
     }
-
-    if (!response.ok) {
-      // レスポンスのbodyを一度だけ読み込む
-      let errorText
-      const contentType = response.headers.get('content-type') || ''
-      
-      if (contentType.includes('application/json')) {
-        try {
-          const errorData = await response.json()
-          errorText = JSON.stringify(errorData)
-        } catch {
-          errorText = `Status ${response.status}: ${response.statusText}`
-        }
-      } else {
-        try {
-          errorText = await response.text()
-        } catch {
-          errorText = `Status ${response.status}: ${response.statusText}`
-        }
-      }
-      
-      console.error('Hugging Face API error:', response.status, errorText)
-      
   } catch (error) {
     console.error('Function error:', error)
     return {
