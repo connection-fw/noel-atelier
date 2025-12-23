@@ -144,14 +144,21 @@ async function generateWithHuggingFace(prompt, width, height) {
           continue
         }
         
-        throw new Error(`API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`)
+        // Netlify Functionsから返される詳細なエラー情報を取得
+        const errorMessage = errorData.error || errorData.message || errorData.details || 'Unknown error'
+        const errorSuggestion = errorData.suggestion || ''
+        
+        throw new Error(`API error: ${response.status} - ${errorMessage}${errorSuggestion ? '\n' + errorSuggestion : ''}`)
       }
       
       // JSONレスポンスから画像データを取得
       const data = await response.json()
       
       if (data.error) {
-        throw new Error(`API error: ${data.error} - ${data.details || ''}`)
+        const errorMessage = data.error || 'Unknown error'
+        const errorDetails = data.message || data.details || ''
+        const errorSuggestion = data.suggestion || ''
+        throw new Error(`API error: ${errorMessage}${errorDetails ? ' - ' + errorDetails : ''}${errorSuggestion ? '\n' + errorSuggestion : ''}`)
       }
       
       if (!data.image || !data.image.startsWith('data:image/')) {
