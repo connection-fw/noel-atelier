@@ -1,0 +1,12 @@
+# Netlify設定ファイル（オプション）
+# このファイルがあると、Netlifyでのデプロイがよりスムーズになります
+
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
