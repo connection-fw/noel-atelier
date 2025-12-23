@@ -43,7 +43,8 @@ exports.handler = async (event, context) => {
     // Netlify Functionsでは、VITE_プレフィックスなしで環境変数を設定する必要があります
     // または、VITE_プレフィックス付きでも読み込めるように両方を試す
     const apiKey = process.env.HUGGINGFACE_API_KEY || process.env.VITE_HUGGINGFACE_API_KEY || ''
-    const apiUrl = 'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5'
+    // より確実に動作するモデルに変更（Stable Diffusion XL）
+    const apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0'
 
     // Hugging Face APIにリクエスト
     const response = await fetch(apiUrl, {
@@ -55,8 +56,8 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         inputs: `${prompt}, high quality, detailed, professional photography, 8k resolution`,
         parameters: {
-          width: Math.min(width || 512, 512),
-          height: Math.min(height || 512, 512)
+          width: Math.min(width || 1024, 1024),
+          height: Math.min(height || 1024, 1024)
         }
       })
     })
@@ -93,6 +94,42 @@ exports.handler = async (event, context) => {
             message: 'The model is currently loading. Please try again in a few seconds.',
             retryAfter: 10
           })
+        }
+      }
+      
+      // 410エラー（モデルが存在しない）の場合、別のモデルを試す
+      if (response.status === 410) {
+        console.error('Model not found (410), trying alternative model')
+        // 代替モデルを試す
+        const altApiUrl = 'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4'
+        const altResponse = await fetch(altApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(apiKey && { 'Authorization': `Bearer ${apiKey}` })
+          },
+          body: JSON.stringify({
+            inputs: `${prompt}, high quality, detailed, professional photography, 8k resolution`,
+            parameters: {
+              width: Math.min(width || 512, 512),
+              height: Math.min(height || 512, 512)
+            }
+          })
+        })
+        
+        if (altResponse.ok) {
+          const altImageBlob = await altResponse.blob()
+          const altArrayBuffer = await altImageBlob.arrayBuffer()
+          const altBase64 = Buffer.from(altArrayBuffer).toString('base64')
+          const altMimeType = altImageBlob.type || 'image/png'
+          
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              image: `data:${altMimeType};base64,${altBase64}`
+            })
+          }
         }
       }
       
